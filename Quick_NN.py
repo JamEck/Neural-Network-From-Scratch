@@ -7,83 +7,61 @@ import numpy as np
 import random as rand
 import matplotlib.pyplot as plt
 
-####### LOAD DATA SET #######
 
-trImgFile = open("train-images-idx3-ubyte", 'br')
-trLabFile = open("train-labels-idx1-ubyte", 'br')
-teImgFile = open( "t10k-images-idx3-ubyte", 'br')
-teLabFile = open( "t10k-labels-idx1-ubyte", 'br')
-
-# load in all the training images
-
-trImgFile.seek(4) # skip magic number
-buf = trImgFile.read(4)
-trImgNum  = int.from_bytes(buf,"big") 
-buf = trImgFile.read(4)
-imgHeight = int.from_bytes(buf,"big")
-buf = trImgFile.read(4)
-imgWidth  = int.from_bytes(buf,"big")
-
-trainImg = [0]*(trImgNum)
-
-for i in range(0, trImgNum):
-    buf = trImgFile.read(imgWidth*imgHeight)
-    trainImg[i] = np.asarray(list(buf)).reshape(28,28)
-
+#### FOR LOADING IN MNIST IMAGES FROM FILE ####
+def loadMNISTimages(fileName):
+    with open(fileName, 'br') as file:
     
-# load in all the test images
+        file.seek(4)       # seek ahead to skip magic number
+        buf = file.read(4) # read next 4 bytes into a buffer
 
-teImgFile.seek(4) # skip magic number
-buf = teImgFile.read(4)
-teImgNum = int.from_bytes(buf,"big") 
-buf = teImgFile.read(4)
-imgHeight = int.from_bytes(buf,"big")
-buf = teImgFile.read(4)
-imgWidth  = int.from_bytes(buf,"big")
+        # convert those bytes into an integer
+        # imgNum = number of images in file
+        imgNum  = int.from_bytes(buf,"big") # interpret bytes as big-endian (MSB first)
 
-testImg  = [0]*(teImgNum)
+        buf = file.read(4)
+        imgHeight = int.from_bytes(buf,"big")
 
-for i in range(0, teImgNum):
-    buf = teImgFile.read(imgWidth*imgHeight)
-    testImg[i] = np.asarray(list(buf)).reshape(28,28)
+        buf = file.read(4)
+        imgWidth  = int.from_bytes(buf,"big")
 
-# load in all the training labels
+        imgs = [[]]*imgNum # list to hold all images
 
-trLabFile.seek(4) # skip magic number
-buf = trLabFile.read(4)
-trLabNum = int.from_bytes(buf,"big") 
+        # all images in the MNIST Data Set are 28x28 grayscale images
+        # and are stored consecutively after the file header
 
-trainLab = np.zeros(trLabNum, dtype = np.uint8)
-buf = trLabFile.read(trLabNum)
-
-for i, byte in enumerate(buf):
-    trainLab[i] = int(byte)
-
-# load in all the training labels
-
-teLabFile.seek(4) # skip magic number
-buf = teLabFile.read(4)
-teLabNum = int.from_bytes(buf,"big") 
-
-testLab = np.zeros(teLabNum, dtype = np.uint8)
-buf = teLabFile.read(teLabNum)
-
-for i, byte in enumerate(buf):
-    testLab[i] = int(byte)
+        for i in range(imgNum):
+            buf = file.read(imgWidth*imgHeight) # read in bytes for i'th image
+            imgs[i] = np.asarray(list(buf)).reshape(28,28) # convert to 28x28 np array
     
-trImgFile.close()
-trLabFile.close()
-trImgFile.close()
-teImgFile.close()
+    return imgs
 
-# testImg   (10000)
-# testLab   (10000)
-# trainImg (60000)
-# trainLab (60000)
+
+#### FOR LOADING IN MNIST LABELS FROM FILE ####
+def loadMNISTlabels(fileName):
+    with open(fileName, 'br') as file:
+
+        file.seek(4) # skip magic number
+
+        buf = file.read(4)
+        labNum = int.from_bytes(buf,"big") # number of labels
+
+        labels = np.zeros(labNum, dtype = np.uint8) # preallocate array to hold labels
+        buf = file.read(labNum) # read in labels
+
+        # convert each label from a byte to an integer and pass each to array
+        for i, byte in enumerate(buf):
+            labels[i] = int(byte)
+
+        file.close()
+
+    return labels
+
 
 #### SIGMOID FUNCTION ####
 def sig(x):
     return 1/(1 + pow(2.718, -x))
+
 
 #### DERIVATE OF SIGMOID FUNCTION ####
 def dsig(x):
@@ -92,6 +70,7 @@ def dsig(x):
     ans *= ans
     ans  = 1/ans
     return ans
+
 
 #### PASS INPUT THROUGH NN AND GET OUTPUT ####
 
@@ -102,12 +81,14 @@ def runNet(inp):
         layer[i+1] = sig(layer[i+1])
     return layer[-1]
 
+
 #### GET DESIRED OUTPUT OF NN USING LABEL ####
 
 def getY(label):
     y = np.zeros(layer[-1].shape)
     y[label] = 1;
     return y
+
 
 #### FIND LOSS FOR PARTICULAR OUTPUT ####
 
@@ -116,12 +97,14 @@ def getCost(label):
     d = (y - layer[-1])
     return (d*d).sum()
 
+
 #### CLASSIFY AN INPUT USING THE CURRENT WEIGHTS ####
 
 def classify(inp):
     runNet(inp)
     ans = layer[-1].argmax()
     return ans
+
 
 #### DERIVATIVE OF ACTIVATED LAYER WRT TO UNACTIVATED LAYER ####
 
@@ -131,6 +114,7 @@ def buildSigmoidSensitivityMatrix(n):
     S*=np.eye(S.shape[0])
     
     return S
+
 
 #### DERIVATIVE OF ONE LAYER RELATIVE TO PREVIOUS LAYER ####
 
@@ -146,6 +130,7 @@ def getLayerTransition(n):
     res = weightMat[n - pos].transpose().dot(S)
     return res
 
+
 #### DERIVATIVE OF UNACTIVATED LAYER WRT PREVIOUS WEIGHT MATRIX ####
 
 def buildBetaOmegaSensitivityMatrix(n): 
@@ -160,6 +145,7 @@ def buildBetaOmegaSensitivityMatrix(n):
     for k,each in enumerate(ans):
         each[k] = layer[n-1].transpose()
     return ans
+
 
 #### WORKAROUND TO MAKE NUMPY LOOK LIKE MY NOTES :) ####
 
@@ -178,6 +164,7 @@ def convertMatDim(shape, mode=0):
     else:
         ans = shape
     return ans
+
 
 #### SETS UP AND ANALYZES MATRICES FOR dot3D ####
 
@@ -211,6 +198,7 @@ def dot3Dsetup(mat1, mat2):
     
     return [ansShape,mat1,mat2,rank1,rank2]
 
+
 #### CUSTOM 3D MATRIX MULTIPLICATION ####
 
 def dot3D(mat1, mat2):  
@@ -237,6 +225,7 @@ def dot3D(mat1, mat2):
         
     return ans
 
+
 #### PHEW! FINALLY SOME GRADIENT DESCENT ####
 
 def backpropUsing(inp, label, trainStep):
@@ -256,12 +245,35 @@ def backpropUsing(inp, label, trainStep):
         weightMat[n-1] += dW
         dC  = getLayerTransition(n).dot(dC)
 
+
+
+
+###############################
+########## MAIN CODE ##########
+###############################
+
+
+####### LOAD DATA SET #######
+
+trainImg = loadMNISTimages("train-images-idx3-ubyte")
+testImg  = loadMNISTimages("t10k-images-idx3-ubyte" )
+trainLab = loadMNISTlabels("train-labels-idx1-ubyte")
+testLab  = loadMNISTlabels("t10k-labels-idx1-ubyte")
+
+# 60,000 training images
+# 60,000 training labels
+# 10,000 test images
+# 10,000 test labels
+
+
 ####### GENERATE LAYERS #######
 structure = [784, 16, 7, 10]
 layer   = [np.zeros((i,1)) for i in structure]
 
+
 ####### GENERATE WEIGHT MATRICES AND INITIALIZE WITH RANDOM VALUES (-1, 1) #######
 weightMat = [2*np.random.random((structure[i+1],structure[i]))-1 for i in range(len(structure) - 1)]
+
 
 ####### BASIC SGD #######
 
@@ -269,6 +281,7 @@ sampNum = 1000 # perform sgd on first 'sampNum' images in training data
 
 for imgNum in range(sampNum):
     backpropUsing(trainImg[imgNum], trainLab[imgNum], 0.4)
+
 
 ##### TEST NN ON TRAINING DATA FIRST #####
 
@@ -289,14 +302,12 @@ print(randAcc)
 print("out of", sampNum)
 print(randAcc/sampNum)
 
-
 ##### TEST NN ON TEST DATA #####
 
 acc= 0
 for i,lab in enumerate(testLab):
     acc += (classify(testImg[i]) == lab)
 print("Correct Classifications out of 10000 Data:\n", acc)
-
 
 print("Accuracy on Test Data:")
 print(acc/len(testLab))
